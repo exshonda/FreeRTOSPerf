@@ -28,9 +28,6 @@
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
-/* Include global setting */
-#include "../SingleConfig.h"
-
 /*-----------------------------------------------------------
  * Application specific definitions.
  *

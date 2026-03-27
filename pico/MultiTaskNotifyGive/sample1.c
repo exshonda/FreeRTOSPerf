@@ -11,12 +11,6 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
-#include "semphr.h"
-
-// Which core to run on if configNUMBER_OF_CORES==1
-#ifndef RUN_FREE_RTOS_ON_CORE
-#define RUN_FREE_RTOS_ON_CORE 0
-#endif /* RUN_FREE_RTOS_ON_CORE */
 
 /* Priorities of our threads - higher numbers are higher priority */
 #define LOW_PRIORITY      ( tskIDLE_PRIORITY + 2UL )
@@ -30,9 +24,6 @@
 TaskHandle_t xTask1Handle;
 TaskHandle_t xTask2Handle;
 
-/*Semaphore Handle*/
-SemaphoreHandle_t xSemaphore;
-
 /* Task Prototype */
 void vTask1( void * pvParameters );
 void vTask2( void * pvParameters );
@@ -41,8 +32,9 @@ void vTask2( void * pvParameters );
 #define LOOP_CNT 20000
 
 /*Othere Variable*/
-int curloop_cnt = 0;
-portBASE_TYPE err;
+int curloop_cnt;
+const TickType_t xDelay1ms = pdMS_TO_TICKS( 1UL );
+volatile bool task2_start;
 
 /* Measurement GPIO Pin */
 #define M_GPIO_NO  2
@@ -63,8 +55,11 @@ void
 vTask1(void *pvParameters)
 {
     while(true) {
+        while(task2_start == false);
+        task2_start = false;
+        vTaskDelay(xDelay1ms);
         begin_measure();
-        err = xSemaphoreGive(xSemaphore);
+        xTaskNotifyGive(xTask2Handle);
     }
 }
 
@@ -74,12 +69,9 @@ vTask2(void *pvParameters)
     curloop_cnt = 0;
     
     while(true) {
-        if (xSemaphoreTake(xSemaphore, pdMS_TO_TICKS(1000)) == pdTRUE){
-	    	end_measure();
-	    } else {
-	    	end_measure();
-	    	printf("Semaphore take timed out\n");
-	    }
+        task2_start = true;
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        end_measure();
         if(++curloop_cnt >= LOOP_CNT) {
             printf("curloop_cnt:%d\n", curloop_cnt);
             while(true);
@@ -93,9 +85,11 @@ vLaunch(void) {
     /*GPIO Init*/
     gpio_init(M_GPIO_NO);
     gpio_set_dir(M_GPIO_NO, GPIO_OUT);
+
+    task2_start = false;
     
     /*Create Task*/
-    if(xTaskCreate(vTask1, "Task_1", TASK_STACK_SIZE, NULL, LOW_PRIORITY, &xTask1Handle) != pdPASS) {
+    if(xTaskCreate(vTask1, "Task_1", TASK_STACK_SIZE, NULL, HIGH_PRIORITY, &xTask1Handle) != pdPASS) {
         printf("Task1 creation failed!\n");
         while(true);
     }
@@ -104,12 +98,10 @@ vLaunch(void) {
         while(true);
     }
     
-    xSemaphore = xSemaphoreCreateBinary();
-
 #if configUSE_CORE_AFFINITY && configNUMBER_OF_CORES > 1
     // we must bind the main task to one core (well at least while the init is called)
-    vTaskCoreAffinitySet(xTask1Handle, 1 << RUN_FREE_RTOS_ON_CORE);
-    vTaskCoreAffinitySet(xTask2Handle, 1 << RUN_FREE_RTOS_ON_CORE);
+    vTaskCoreAffinitySet(xTask1Handle, 1 << 0); //Core0
+    vTaskCoreAffinitySet(xTask2Handle, 1 << 1); //Core1
 #endif /* configUSE_CORE_AFFINITY && configNUMBER_OF_CORES > 1 */
 
     /* Start the tasks and timer running. */
@@ -124,22 +116,10 @@ main(void)
     
     stdio_init_all();
    
-#if (configNUMBER_OF_CORES > 1)
     rtos_name = "FreeRTOS SMP";
-#else /* !(configNUMBER_OF_CORES > 1) */
-    rtos_name = "FreeRTOS";
-#endif /* (configNUMBER_OF_CORES > 1) */
 
-#if (configNUMBER_OF_CORES > 1)
     printf("Starting %s on both cores:\n", rtos_name);
     vLaunch();
-#elif (RUN_FREE_RTOS_ON_CORE == 1 && configNUMBER_OF_CORES==1)
-    printf("Starting %s on core 1:\n", rtos_name);
-    multicore_launch_core1(vLaunch);
-    while (true);
-#else /* (RUN_FREE_RTOS_ON_CORE == 1 && configNUMBER_OF_CORES==1) */
-    printf("Starting %s on core 0:\n", rtos_name);
-    vLaunch();
-#endif /* (configNUMBER_OF_CORES > 1) */
+
     return 0;
 }

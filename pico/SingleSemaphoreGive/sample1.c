@@ -19,9 +19,9 @@
 #endif /* RUN_FREE_RTOS_ON_CORE */
 
 /* Priorities of our threads - higher numbers are higher priority */
-#define LOW_PRIORITY      ( tskIDLE_PRIORITY + 1UL )
-#define MID_PRIORITY      ( tskIDLE_PRIORITY + 2UL )
-#define HIGH_PRIORITY     ( tskIDLE_PRIORITY + 3UL )
+#define LOW_PRIORITY      ( tskIDLE_PRIORITY + 2UL )
+#define MID_PRIORITY      ( tskIDLE_PRIORITY + 3UL )
+#define HIGH_PRIORITY     ( tskIDLE_PRIORITY + 4UL )
 
 /* Stack sizes of our threads in words (4 bytes) */
 #define TASK_STACK_SIZE configMINIMAL_STACK_SIZE
